@@ -1,0 +1,16 @@
+image: alpine
+
+stages:
+  - build
+
+pages:
+  stage: build
+  tags:
+    - amd64-build
+  script:
+    - mkdir -p .public
+    - cp -r * .public/
+    - mv .public public
+  artifacts:
+    paths:
+      - public

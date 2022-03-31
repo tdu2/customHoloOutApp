@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en-us">
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <title>Augmented Lidar Planning Tool</title>
+    <script src="TemplateData/UnityProgress.js"></script>
+    <script src="Build/UnityLoader.js"></script>
+    <script src="js/FileSaver.js"></script>
+    <script src="https://unpkg.com/pdf-lib@1.4.0"></script>
+    <script src="https://unpkg.com/downloadjs@1.4.7"></script>
+    <script src="js/PdfGenerator.js"></script>
+    <script type="text/javascript" src="js/vkbeautify.js"></script>
+
+    <script>      
+      //UNITY CALL
+      const unityInstance = UnityLoader.instantiate("unityContainer", "Build/WebGLBuild.json", {
+        onProgress: UnityProgress,
+        /*Module: {
+          TOTAL_MEMORY: 2000000000,
+        },*/
+        Module:{
+          onQuit : function(){
+            console.log("unity has quit");
+          }
+        }
+      });
+
+      var autosaveContent = "";
+      UnityLoader.Error.handler = function(e, t)
+      {      
+        var currentdate = new Date(); 
+        var datetime = currentdate.getDate() + "/"
+                + (currentdate.getMonth()+1)  + "/" 
+                + currentdate.getFullYear() + "_"  
+                + currentdate.getHours() + "h"  
+                + currentdate.getMinutes() + "min";
+          if (e.message.indexOf("out of memory") != -1 || e.message.indexOf("Array buffer allocation") != -1)
+          {
+            alert("Memory usage is critical. A backup file of your work has been generated, please download it. Then close the tab and lauch again the app. You'll be be able to load again your work by loading the backup file. \nNOTE: Imported image and imported .obj model will not be saved in the backup file. You will have to re-import them.");
+            saveSimulationContentToFile(autosaveContent, "simulation_backup_" + datetime);
+            //window.location.reload();
+          }
+          alert("An error occured. A backup file of your work has been generated, please download it. Then close the tab and lauch again the app. You'll be be able to load again your work by loading the backup file. \nNOTE: Imported image and imported .obj model will not be saved in the backup file. You will have to re-import them.");
+          saveSimulationContentToFile(autosaveContent, "simulation_backup_" + datetime);
+          //window.location.reload();
+          
+          // Handle other errors.
+      };
+      //LOAD SIMULATION FILE
+      window.importSimulation = function() {        
+        var input = document.getElementById("saveFile");
+        input.oninput = function() {                 
+          //load simulation with file content        
+          window.loadSimulation(input.files[0]);
+          //clear input file to be able to reload the same simulation twice if needed          
+          input.value = "";               
+        }        
+        input.click();
+      }
+      window.loadSimulation = function(fileToLoad) {                   
+        var fileReader = new FileReader();
+        fileReader.onload = function(){   
+          var contentResult = vkbeautify.xml(fileReader.result);
+          unityInstance.SendMessage('SaveLoadManager', 'GetFileLength', contentResult.length);
+          for (i = 0; i < contentResult.length; i = i + 1000000)
+          {
+            if (i < contentResult.length)
+            {
+              unityInstance.SendMessage('SaveLoadManager', 'ComputeLoadFileInString', contentResult.substring(i, i + 1000000));
+              if (i + 1000000 >= contentResult.length)
+              {
+                unityInstance.SendMessage('SaveLoadManager', 'loadSimulation');
+              }
+            }
+          
+          }
+        }     
+        if(fileToLoad instanceof Blob && fileToLoad.size > 0)
+        {                    
+          fileReader.readAsText(fileToLoad, "UTF-8");               
+        }
+        else
+        {
+          alert("Could not load file");
+        }                          
+      } 
+
+      function loadEmptySimulation(fileToLoad) {                   
+        var fileReader = new FileReader();
+        fileReader.onloadend = function(){        
+          unityInstance.SendMessage('SaveLoadManager', 'loadSimulation', fileReader.result);
+        }     
+        fileReader.readAsText(fileToLoad, "UTF-8");               
+      } 
+
+      //LOAD OBJ FILE
+      window.importOBJFile = function() {
+        var input = document.getElementById("modelObjFile");
+        input.onchange = e => {
+            var file = e.target.files[0]; 
+            window.loadOBJFile();
+        }
+        input.click();
+      }
+      window.importGLTFFile = function() {
+        var input = document.getElementById("modelGltfFile");
+        input.onchange = e => {
+            var file = e.target.files[0]; 
+            window.loadGLTFFile();
+        }
+        input.click();
+      }
+
+      window.loadOBJFile = function() {
+        var fileToLoad = document.getElementById("modelObjFile").files[0];
+        var fileReader = new FileReader();
+        fileReader.onload = function(){          
+          unityInstance.SendMessage('SaveLoadManager', 'GetObjLength', fileReader.result.length);
+          for (i = 0; i < fileReader.result.length; i = i + 1000000)
+          {
+            if (i < fileReader.result.length)
+            {
+              unityInstance.SendMessage('SaveLoadManager', 'ComputeObjFileInString', fileReader.result.substring(i, i + 1000000));
+              if (i + 1000000 >= fileReader.result.length)
+              {
+                unityInstance.SendMessage('SaveLoadManager', 'LoadObjFromJS');
+              }
+            }
+          }
+
+        }
+        if(fileToLoad instanceof Blob)
+        {          
+          fileReader.readAsText(fileToLoad, "UTF-8");        
+        }
+        else
+        {
+          alert("Could not load file");
+        }
+      }     
+
+      window.loadGLTFFile = function() {
+        var fileToLoad = document.getElementById("modelGltfFile").files[0];
+        var fileReader = new FileReader();
+        fileReader.onload = function(){          
+          unityInstance.SendMessage('SaveLoadManager', 'GetGltfLength', (fileReader.result).length);
+          for (i = 0; i < fileReader.result.length; i = i + 1000000)
+          {
+            if (i < fileReader.result.length)
+            {
+              unityInstance.SendMessage('SaveLoadManager', 'ComputeGltfFileInString', (fileReader.result).substring(i, i + 1000000));
+              if (i + 1000000 >= fileReader.result.length)
+              {
+                unityInstance.SendMessage('SaveLoadManager', 'LoadGltfFromJS');
+              }
+            }
+          }
+
+        }
+        if(fileToLoad instanceof Blob)
+        {          
+          fileReader.readAsText(fileToLoad);        
+        }
+        else
+        {
+          alert("Could not load file");
+        }
+      } 
+      
+      //LOAD PDF INFO
+      window.generatePDF = function(pdfContent, pdfName){
+        createPdf(pdfContent, pdfName);
+      }
+
+      //SAVE SIMULATION FILE
+      function saveSimulationContentToFile(content, filename) {
+        var blob = new Blob([content], { type: "text/plain;charset=utf-8" });
+        saveAs(blob, filename+".xml");
+      }
+
+      window.saveSimulation = function(content, filename) {
+        saveSimulationContentToFile(content, filename)               
+      }
+
+      window.autoSaveSimulation = function(content, filename) {
+        autosaveContent = content;
+      }
+
+      function saveHologardeSimulationDataToFile(content, filename) {
+        var blob = new Blob([content], { type: "text/plain;charset=utf-8" });
+        saveAs(blob, filename+".txt");
+      }
+
+      window.saveHologardeSimulationData = function(content, filename) {
+        saveHologardeSimulationDataToFile(content, filename);
+      }
+
+    </script>
+  </head>
+  <body style="width: 100vw; height: 100vh; position: relative; padding: 0; margin: 0; overflow: hidden;">
+    <div id="unityContainer" style="top:0; bottom:0; left:0; right: 0; position: absolute;"></div>
+    <input type="file" accept=".xml, .ots" id="saveFile" hidden>
+    <input type="file" accept= ".obj" id="modelObjFile" hidden>
+    <input type="file" accept= ".gltf" id="modelGltfFile" hidden>
+  </body>
+</html>
